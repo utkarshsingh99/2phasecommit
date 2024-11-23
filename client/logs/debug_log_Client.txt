@@ -1,0 +1,6 @@
+2024/11/20 23:27:32 Connecting to all servers...
+2024/11/20 23:27:32 Connected to all servers or clients
+2024/11/20 23:27:32 Connected to all servers or clients
+2024/11/20 23:27:32 RPC error calling S1: rpc: can't find service Server.Ping
+2024/11/20 23:27:32 RPC Client map length:  1
+2024/11/20 23:27:33 Received ping from S1

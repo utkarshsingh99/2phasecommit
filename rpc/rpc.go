@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"log"
 	"net/rpc"
+	"slices"
 	"sync"
 	"time"
 )
@@ -14,6 +15,15 @@ func New() *RPCManager {
 	gob.Register(Message{})
 	gob.Register(RequestInterface{})
 	gob.Register(ReplyInterface{})
+	gob.Register(ToggleServerInterface{})
+	gob.Register(Transaction{})
+	gob.Register(PrepareInterface{})
+	gob.Register(SyncInterface{})
+	gob.Register(SyncResponseInterface{})
+	gob.Register(PromiseInterface{})
+	gob.Register(AcceptInterface{})
+	gob.Register(AcceptedInterface{})
+	gob.Register(CommitInterface{})
 
 	return &RPCManager{
 		RPCClients: make(map[string]*rpc.Client),
@@ -21,15 +31,25 @@ func New() *RPCManager {
 			"S1": ":1234",
 			"S2": ":1235",
 			"S3": ":1236",
-			"S4": ":1237",
-			"S5": ":1238",
-			"S6": ":1239",
-			"S7": ":1240",
-			"S8": ":1241",
-			"S9": ":1242",
+			// "S4": ":1237",
+			// "S5": ":1238",
+			// "S6": ":1239",
+			// "S7": ":1240",
+			// "S8": ":1241",
+			// "S9": ":1242",
 		},
 		ClientPorts: map[string]string{
 			"Client": ":2234",
+		},
+		ShardLeaderMapping: map[string]string{
+			"C1": "S1",
+			"C2": "S4",
+			"C3": "S7",
+		},
+		ShardMapping: map[string][]string{
+			"C1": {"S1", "S2", "S3"},
+			"C2": {"S4", "S5", "S6"},
+			"C3": {"S7", "S8", "S9"},
 		},
 	}
 }
@@ -107,15 +127,16 @@ func isServer(serverID string) bool {
 
 // BroadcastMessage sends an RPC call to all RPCClients asynchronously
 // and returns a map of server IDs and their responses.
-func (RPCManager *RPCManager) BroadcastMessage(serviceMethod string, message Message) map[string]int {
+func (RPCManager *RPCManager) BroadcastMessage(serviceMethod string, message Message, clusterId string) map[string]int {
 	replies := make(map[string]int) // Map to store responses from each server
 	mu := &sync.Mutex{}             // Mutex to synchronize access to the replies map
 	wg := &sync.WaitGroup{}         // WaitGroup to wait for all goroutines to finish
 
 	for serverId, client := range RPCManager.RPCClients {
-		if client != nil && isServer(serverId) {
+		if client != nil && isServer(serverId) && slices.Contains(RPCManager.ShardMapping[clusterId], serverId) {
 			wg.Add(1)
 			// Launch a goroutine to make the RPC call
+			// fmt.Println("Sending RPC call to server:", serverId)
 			go func(serverId string, client *rpc.Client) {
 				defer wg.Done()
 				var reply int
