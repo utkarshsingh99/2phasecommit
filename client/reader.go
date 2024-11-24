@@ -150,9 +150,9 @@ func (c *Client) identifyCluster(dataItem int) string {
 	}
 }
 
-func (c *Client) processTransactionSet(transactionSet []rpcmanager.Transaction, activeServersStr string, byzantineServersStr string) {
+func (c *Client) processTransactionSet(transactionSet []rpcmanager.Transaction, activeServersStr string, contactServerStr string) {
 
-	allServers := []string{"S1", "S2", "S3"}
+	allServers := []string{"S1", "S2", "S3", "S4", "S5", "S6", "S7", "S8", "S9"}
 	serversToDisable := []string{}
 
 	// Disable all servers not in activeServersStr
@@ -167,8 +167,8 @@ func (c *Client) processTransactionSet(transactionSet []rpcmanager.Transaction, 
 	c.toggleServerLiveness(strings.Split(activeServersStr, ", "), true)
 
 	var contactServers []string
-	if byzantineServersStr != "" {
-		contactServers = strings.Split(byzantineServersStr, ", ")
+	if contactServerStr != "" {
+		contactServers = strings.Split(contactServerStr, ", ")
 	} else {
 		contactServers = []string{}
 	}
@@ -195,7 +195,7 @@ func (c *Client) processTransactionSet(transactionSet []rpcmanager.Transaction, 
 		if senderCluster != receiverCluster {
 			fmt.Println("Cross shard transaction! ", senderCluster, receiverCluster)
 
-			c.handleCrossShardTransaction(transactionObj)
+			go c.handleCrossShardTransaction(transactionObj)
 		} else {
 			fmt.Println("Intra shard transaction! ", senderCluster, receiverCluster)
 			message := rpcmanager.Message{
@@ -204,18 +204,20 @@ func (c *Client) processTransactionSet(transactionSet []rpcmanager.Transaction, 
 				Payload: transactionObj,
 			}
 
-			contactServer := c.RPCManager.ShardLeaderMapping[senderCluster]
+			go func() {
+				contactServer := c.RPCManager.ShardLeaderMapping[senderCluster]
 
-			client := c.RPCManager.RPCClients[contactServer]
-			if client == nil {
-				log.Println("Client not found for server: ", contactServer)
-				continue
-			}
-			err := client.Call("Server.IntraShardTransaction", message, nil)
-			if err != nil {
-				fmt.Println("Error calling IntraShardTransaction for server:", contactServer, err)
-				return
-			}
+				client := c.RPCManager.RPCClients[contactServer]
+				if client == nil {
+					log.Println("Client not found for server: ", contactServer)
+					return
+				}
+				err := client.Call("Server.IntraShardTransaction", message, nil)
+				if err != nil {
+					fmt.Println("Error calling IntraShardTransaction for server:", contactServer, err)
+					return
+				}
+			}()
 		}
 	}
 	// 	clientName := transaction.Sender

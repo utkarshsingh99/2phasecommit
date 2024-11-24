@@ -1,6 +1,7 @@
 package bank
 
 import (
+	"fmt"
 	"sync"
 )
 
@@ -61,7 +62,7 @@ func (b *Bank) IsClientLocked(clientId int) bool {
 }
 
 func (b *Bank) CommitTransaction(transaction Transaction) {
-
+	fmt.Println("Actually committing transaction: ", transaction.Sender, transaction.Receiver, transaction.Amount)
 	b.Log.AddTransaction(transaction)
 
 	b.BankBalance.Clients[transaction.Sender] -= transaction.Amount

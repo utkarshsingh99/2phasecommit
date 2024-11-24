@@ -67,7 +67,7 @@ type ToggleServerInterface struct {
 }
 
 type PrepareInterface struct {
-	BallotNumber      int
+	BallotNumber      float64
 	LastTransactionId string
 }
 
@@ -80,25 +80,25 @@ type SyncResponseInterface struct {
 }
 
 type PromiseInterface struct {
-	BallotNumber int
-	AcceptNumber int
+	BallotNumber float64
+	AcceptNumber float64
 	AcceptValue  Transaction
 }
 
 type AcceptInterface struct {
-	BallotNumber int
-	AcceptNumber int
+	BallotNumber float64
+	AcceptNumber float64
 	AcceptValue  Transaction
 }
 
 type AcceptedInterface struct {
-	BallotNumber int
-	AcceptNumber int
+	BallotNumber float64
+	AcceptNumber float64
 	AcceptValue  Transaction
 }
 
 type CommitInterface struct {
-	BallotNumber int
-	AcceptNumber int
+	BallotNumber float64
+	AcceptNumber float64
 	AcceptValue  Transaction
 }

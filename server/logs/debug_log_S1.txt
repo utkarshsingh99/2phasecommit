@@ -1,7 +1,0 @@
-2024/11/20 23:25:27 rpc.Register: type Server has no exported methods of suitable type
-2024/11/20 23:25:27 Listening to server on port: :1234
-2024/11/20 23:25:29 Connected to all servers or clients
-2024/11/20 23:25:29 Dialing server Client failed: dial tcp [::1]:2234: connect: connection refused. Retrying in 2 seconds...
-2024/11/20 23:25:31 Dialing server Client failed: dial tcp [::1]:2234: connect: connection refused. Retrying in 2 seconds...
-2024/11/20 23:25:33 Connected to all servers or clients
-2024/11/20 23:25:33 RPC error calling Client: rpc: can't find service Client.Ping

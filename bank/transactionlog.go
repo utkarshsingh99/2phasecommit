@@ -2,6 +2,7 @@ package bank
 
 import (
 	"errors"
+	"fmt"
 	"sync"
 	"time"
 )
@@ -37,10 +38,13 @@ func (t *Log) CompareMyLog(id1 string) (bool, string) {
 	if lastID == id1 {
 		return true, "all_updated"
 	} else {
-		for _, transaction := range t.Transactions {
+		for _, transaction := range t.Transactions[:len(t.Transactions)-1] {
 			if transaction.ID == id1 {
 				return false, "they_outdated"
 			}
+		}
+		if len(t.Transactions) > 0 && id1 == "" {
+			return false, "they_outdated"
 		}
 		return false, "me_outdated"
 	}
@@ -57,6 +61,7 @@ func (t *Log) SendRemainingLog(transactionID string) []Transaction {
 	t.Locks.RLock()
 	defer t.Locks.RUnlock()
 	index := 0
+	fmt.Println("SendRemiainingLog Transactions: ", t.Transactions)
 	for _, transaction := range t.Transactions {
 		index += 1
 		if transaction.ID == transactionID {

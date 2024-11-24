@@ -15,13 +15,14 @@ func (a *Server) EnableServer(msg *rpcmanager.Message, reply *int) error {
 }
 
 func (a *Server) DisableServer(msg *rpcmanager.Message, reply *int) error {
+	log.Println("Disabling server: ", a.StringId)
 	*reply = 1
 	a.Active = false
 	return nil
 }
 
 func (s *Server) Ping(data rpcmanager.Message, reply *int) error {
-	fmt.Println("Received ping from", data.From)
+	// fmt.Println("Received ping from", data.From)
 	return nil
 }
 

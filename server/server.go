@@ -22,14 +22,14 @@ func main() {
 	serverId := os.Args[1]
 
 	// Logger setup START
-	// f, err := os.OpenFile("logs/debug_log_"+serverId+".txt", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
+	f, err := os.OpenFile("logs/debug_log_"+serverId+".txt", os.O_RDWR|os.O_CREATE|os.O_TRUNC, 0666)
 
-	// if err != nil {
-	// 	log.Fatalf("error opening file: %v", err)
-	// }
-	// defer f.Close()
+	if err != nil {
+		log.Fatalf("error opening file: %v", err)
+	}
+	defer f.Close()
 
-	// log.SetOutput(f)
+	log.SetOutput(f)
 	// Logger setup END
 
 	// Start the RPC server in a goroutine

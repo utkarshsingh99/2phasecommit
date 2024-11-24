@@ -27,8 +27,8 @@ type leaderMessages struct {
 
 type Paxos struct {
 	active       bool
-	ballotNumber int
-	acceptNumber int
+	ballotNumber float64
+	acceptNumber float64
 	acceptValue  rpcmanager.Transaction
 	promises     leaderMessages
 	accepted     leaderMessages

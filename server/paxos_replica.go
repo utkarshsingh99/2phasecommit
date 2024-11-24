@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fmt"
+	"log"
 	"sync"
 
 	"github.com/utkarshsingh99/2phasecommit/bank"
@@ -22,7 +22,11 @@ import (
 // RETURN
 
 func (s *Server) Prepare(message rpcmanager.Message, reply *int) error {
-	fmt.Println("Received Prepare from", message.From)
+	if !s.Active {
+		return nil
+	}
+
+	log.Println("Received Prepare from", message.From, "for ballot number", message.Payload.(rpcmanager.PrepareInterface).BallotNumber)
 
 	ballotNumber := message.Payload.(rpcmanager.PrepareInterface).BallotNumber
 	lastTransId := message.Payload.(rpcmanager.PrepareInterface).LastTransactionId
@@ -35,8 +39,8 @@ func (s *Server) Prepare(message rpcmanager.Message, reply *int) error {
 		s.Paxos.ballotNumber = ballotNumber
 
 		compareLog, compareLogMsg := s.Bank.Log.CompareMyLog(lastTransId)
-
 		if !compareLog {
+			log.Println(compareLog, compareLogMsg)
 
 			syncMessage := rpcmanager.Message{
 				From: s.StringId,
@@ -48,12 +52,12 @@ func (s *Server) Prepare(message rpcmanager.Message, reply *int) error {
 			var syncErr error
 
 			if compareLogMsg == "me_outdated" {
-				syncErr = client.Call("Server.GiveSync", syncMessage, s.StringId)
+				syncErr = client.Call("Server.TakeSync", syncMessage, nil)
 			} else if compareLogMsg == "they_outdated" {
-				syncErr = client.Call("Server.TakeSync", syncMessage, s.StringId)
+				syncErr = client.Call("Server.GiveSync", syncMessage, nil)
 			}
 			if syncErr != nil {
-				fmt.Println("Error calling Sync:", syncErr)
+				log.Println("Error calling Sync:", syncErr)
 				return syncErr
 			}
 		}
@@ -67,12 +71,12 @@ func (s *Server) Prepare(message rpcmanager.Message, reply *int) error {
 			},
 		}
 
-		fmt.Println("Sending Promise message...", respMessage)
+		log.Println("Sending Promise message...", respMessage)
 
 		// Send Promise Message
 		err := client.Call("Server.Promise", respMessage, nil)
 		if err != nil {
-			fmt.Println("Error calling Promise:", err)
+			log.Println("Error calling Promise:", err)
 			return err
 		}
 	}
@@ -85,7 +89,10 @@ func (s *Server) Prepare(message rpcmanager.Message, reply *int) error {
 // Send Accepted message <Ballot Number, AcceptNum, AcceptVal=Transaction>
 // RETURN
 func (s *Server) Accept(message rpcmanager.Message, reply *int) error {
-	fmt.Println("Received Accept from", message.From, message.Payload.(rpcmanager.AcceptInterface))
+	if !s.Active {
+		return nil
+	}
+	// log.Println("Received Accept from", message.From, message.Payload.(rpcmanager.AcceptInterface))
 
 	transaction := message.Payload.(rpcmanager.AcceptInterface).AcceptValue
 
@@ -103,7 +110,7 @@ func (s *Server) Accept(message rpcmanager.Message, reply *int) error {
 	}
 
 	// Send Accepted message back to primary
-	s.RPCManager.RPCClients[message.From].Call("Server.Accepted", respMessage, nil)
+	go s.RPCManager.RPCClients[message.From].Call("Server.Accepted", respMessage, nil)
 	return nil
 }
 
@@ -113,7 +120,10 @@ func (s *Server) Accept(message rpcmanager.Message, reply *int) error {
 // RETURN
 
 func (s *Server) Commit(message rpcmanager.Message, reply *int) error {
-	fmt.Println("Received Commit from", message.From, message.Payload.(rpcmanager.CommitInterface))
+	if !s.Active {
+		return nil
+	}
+	// log.Println("Received Commit from", message.From, message.Payload.(rpcmanager.CommitInterface))
 
 	transaction := message.Payload.(rpcmanager.CommitInterface).AcceptValue
 
@@ -122,15 +132,15 @@ func (s *Server) Commit(message rpcmanager.Message, reply *int) error {
 	s.ResetPaxos()
 
 	// Print balance of x and y
-	fmt.Println("Balance of x:", s.Bank.GetBalance(transaction.Sender))
-	fmt.Println("Balance of y:", s.Bank.GetBalance(transaction.Receiver))
+	// log.Println("Balance of x:", s.Bank.GetBalance(transaction.Sender))
+	// log.Println("Balance of y:", s.Bank.GetBalance(transaction.Receiver))
 
 	return nil
 }
 
 func (s *Server) executeTransaction(transaction rpcmanager.Transaction) {
 
-	fmt.Println("Executing transaction: ", transaction.Sender, transaction.Receiver, transaction.Amount)
+	// log.Println("Executing transaction: ", transaction.Sender, transaction.Receiver, transaction.Amount)
 
 	newTransaction := bank.Transaction{
 		Sender:    transaction.Sender,

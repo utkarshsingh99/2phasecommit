@@ -1,16 +1,18 @@
 package main
 
 import (
-	"fmt"
+	"log"
+	"math"
+	"time"
 
 	rpcmanager "github.com/utkarshsingh99/2phasecommit/rpc"
 )
 
 // Contact Server
+var noMajorityChecker rpcmanager.Transaction
 
 func (s *Server) IntraShardTransaction(message rpcmanager.Message, reply *int) error {
-	fmt.Println("Received IntraShardTransaction from", message.From)
-	displayTransaction(message.Payload.(rpcmanager.Transaction))
+	log.Println("Received IntraShardTransaction from", message.From, displayTransaction(message.Payload.(rpcmanager.Transaction)))
 
 	// Check if message exists in requestQueue already
 	for _, msg := range s.RequestQueue.messages {
@@ -31,6 +33,10 @@ func (s *Server) IntraShardTransaction(message rpcmanager.Message, reply *int) e
 	return nil
 }
 
+func (s *Server) CrossShardTransaction(message rpcmanager.Message, reply *int) error {
+	return nil
+}
+
 // FUNC: Initiate REQUEST(<Transaction>)
 // Contact server receives a transaction request
 // Increases ballot number
@@ -40,25 +46,33 @@ func (s *Server) IntraShardTransaction(message rpcmanager.Message, reply *int) e
 // RETURN
 
 func (s *Server) InitiateRequest() {
-	if s.Paxos.active || len(s.RequestQueue.messages) == 0 {
+	time.Sleep(time.Second)
+	s.RequestQueue.lock.Lock()
+	defer s.RequestQueue.lock.Unlock()
+	log.Println("Initiate Request: ", s.Paxos.active, s.CurRequest.Payload, len(s.RequestQueue.messages))
+	if s.Paxos.active || s.CurRequest.Payload != nil || len(s.RequestQueue.messages) == 0 {
 		return // Already in a request
 	}
 
-	s.RequestQueue.lock.Lock()
-
+	log.Println("Initiating request for...", s.RequestQueue.messages)
 	// Pop first element from request queue
 	s.CurRequest = s.RequestQueue.messages[0]
 	s.RequestQueue.messages = s.RequestQueue.messages[1:]
 
-	s.RequestQueue.lock.Unlock()
+	if s.CurRequest.Payload == nil {
+		return
+	}
 
 	// Increase ballot number
-	s.Paxos.ballotNumber++
+	// a.ballotNumber = math.Floor(a.ballotNumber) + 1 + 0.1*float64(a.intId)
+	s.Paxos.ballotNumber = math.Floor(s.Paxos.ballotNumber) + 1 + 0.1*float64(s.IntId)
+	// s.Paxos.ballotNumber++
+	s.Paxos.active = true
 
 	lastTransId, _ := s.Bank.Log.GetLastTransactionID()
 
 	// Broadcast prepare message to all servers in cluster
-	s.RPCManager.BroadcastMessage("Server.Prepare", rpcmanager.Message{
+	go s.RPCManager.BroadcastMessage("Server.Prepare", rpcmanager.Message{
 		From: s.StringId,
 		Payload: rpcmanager.PrepareInterface{
 			BallotNumber:      s.Paxos.ballotNumber,
@@ -67,12 +81,14 @@ func (s *Server) InitiateRequest() {
 	}, s.ClusterId)
 
 	// Add timer to initiateRequest again
-	// time.AfterFunc(time.Second, func() {
-	// 	if !s.Paxos.promises.acked {
-	// 		fmt.Println("Initiating request again...", s.Paxos.ballotNumber)
-	// 		s.InitiateRequest()
-	// 	}
-	// })
+	noMajorityChecker = s.CurRequest.Payload.(rpcmanager.Transaction)
+	time.AfterFunc(time.Second, func() {
+		if s.CurRequest.Payload != nil && noMajorityChecker == s.CurRequest.Payload.(rpcmanager.Transaction) {
+			log.Println("Aborting request")
+			s.CurRequest = rpcmanager.Message{}
+			s.ResetPaxos()
+		}
+	})
 }
 
 // FUNC: RECEIVE PROMISE(<ACK, Ballot Number, AcceptNum, AcceptVal>)
@@ -86,28 +102,41 @@ func (s *Server) InitiateRequest() {
 
 func (s *Server) Promise(message rpcmanager.Message, reply *int) error {
 
+	log.Println("Ballot numbers: ", s.Paxos.ballotNumber, message.Payload.(rpcmanager.PromiseInterface).BallotNumber)
+	if message.Payload.(rpcmanager.PromiseInterface).BallotNumber < s.Paxos.ballotNumber {
+		return nil
+	}
+
 	s.Paxos.promises.lock.Lock()
-	fmt.Println("Received Promise from", message.From)
+	log.Println("Received Promise from", message.From, s.Paxos.promises.acked)
 	s.Paxos.promises.messages = append(s.Paxos.promises.messages, message)
 
-	transaction := s.CurRequest.Payload.(rpcmanager.Transaction)
-
-	sender := transaction.Sender
-	receiver := transaction.Receiver
-
 	// >= 1 signifies one other server responded
-	if len(s.Paxos.promises.messages) >= 1 && !s.Paxos.promises.acked {
-
+	if len(s.Paxos.promises.messages) >= 1 && !s.Paxos.promises.acked && s.CurRequest.Payload != nil {
 		s.Paxos.promises.acked = true
+
+		transaction := s.CurRequest.Payload.(rpcmanager.Transaction)
+
+		sender := transaction.Sender
+		receiver := transaction.Receiver
+
 		// Check if there are no locks on data items x and y
 		if s.Bank.IsClientLocked(sender) || s.Bank.IsClientLocked(receiver) {
 			// Abort transaction
+			s.CurRequest = rpcmanager.Message{}
+			s.ResetPaxos()
+
+			go s.InitiateRequest()
 			return nil
 		}
 
 		// Check if the balance of x is at least equal to amt.
 		if s.Bank.GetBalance(sender) < transaction.Amount {
 			// Abort transaction
+			s.CurRequest = rpcmanager.Message{}
+			s.ResetPaxos()
+
+			go s.InitiateRequest()
 			return nil
 		}
 
@@ -142,7 +171,7 @@ func (s *Server) Promise(message rpcmanager.Message, reply *int) error {
 
 func (s *Server) Accepted(message rpcmanager.Message, reply *int) error {
 
-	fmt.Println("Received Accepted from", message.From, " transaction: ", message.Payload.(rpcmanager.AcceptedInterface).AcceptValue)
+	log.Println("Received Accepted from", message.From)
 	s.Paxos.accepted.lock.Lock()
 	s.Paxos.accepted.messages = append(s.Paxos.accepted.messages, message)
 
@@ -163,11 +192,13 @@ func (s *Server) Accepted(message rpcmanager.Message, reply *int) error {
 		s.executeTransaction(s.Paxos.acceptValue)
 
 		// Print balance of x and y
-		fmt.Println("Balance of x:", s.Bank.GetBalance(s.Paxos.acceptValue.Sender))
-		fmt.Println("Balance of y:", s.Bank.GetBalance(s.Paxos.acceptValue.Receiver))
+		// log.Println("Balance of x:", s.Bank.GetBalance(s.Paxos.acceptValue.Sender))
+		// log.Println("Balance of y:", s.Bank.GetBalance(s.Paxos.acceptValue.Receiver))
 		s.Paxos.accepted.lock.Unlock()
 
 		s.ResetPaxos()
+
+		go s.InitiateRequest()
 	} else {
 		s.Paxos.accepted.lock.Unlock()
 	}
