@@ -54,18 +54,26 @@ func (d *DataStore) AddTransaction(transaction Transaction, ballotNumber float64
 	log.Println("Saving transaction to PostgreSQL...", d.DB)
 	if d.DB != nil {
 		tableName := fmt.Sprintf("transactions_%s", d.TableSuffix)
-		query := `
-			INSERT INTO $7 (id, ballot_number, cross_shard_status, sender, receiver, amount)
-			VALUES ($1, $2, $3, $4, $5, $6)
-			ON CONFLICT (id) DO UPDATE
-			SET ballot_number = EXCLUDED.ballot_number,
-			    cross_shard_status = EXCLUDED.cross_shard_status,
-			    sender = EXCLUDED.sender,
-			    receiver = EXCLUDED.receiver,
-			    amount = EXCLUDED.amount`
-		_, err := d.DB.Exec(query, transaction.ID, prevBallotNumber, crossShardStatus, transaction.Sender, transaction.Receiver, transaction.Amount, tableName)
-		if err != nil {
-			log.Println("Failed to save transaction to PostgreSQL:", err)
+		query := fmt.Sprintf(`
+        INSERT INTO %s (id, ballot_number, cross_shard_status, sender, receiver, amount)
+        VALUES ($1, $2, $3, $4, $5, $6)
+        ON CONFLICT (id) DO UPDATE
+        SET ballot_number = EXCLUDED.ballot_number,
+            cross_shard_status = EXCLUDED.cross_shard_status,
+            sender = EXCLUDED.sender,
+            receiver = EXCLUDED.receiver,
+            amount = EXCLUDED.amount`, tableName)
+
+		if crossShardStatus == "ABORTED" {
+			_, err := d.DB.Exec(query, transaction.ID, ballotNumber, crossShardStatus, transaction.Receiver, transaction.Sender, transaction.Amount)
+			if err != nil {
+				log.Println("Failed to save transaction to database:", err)
+			}
+		} else {
+			_, err := d.DB.Exec(query, transaction.ID, ballotNumber, crossShardStatus, transaction.Sender, transaction.Receiver, transaction.Amount)
+			if err != nil {
+				log.Println("Failed to save transaction to database:", err)
+			}
 		}
 	}
 }
@@ -117,12 +125,9 @@ func (d *DataStore) CreateTransactionsTable() error {
 
 	query1 := fmt.Sprintf(`
 	CREATE TABLE IF NOT EXISTS %s (
-		id VARCHAR(255) PRIMARY KEY,
-		ballot_number FLOAT,
-		cross_shard_status VARCHAR(20),
-		sender VARCHAR(255),
-		receiver VARCHAR(255),
-		amount FLOAT
+		id SERIAL PRIMARY KEY,        -- Unique ID for each client
+    name VARCHAR(255) NOT NULL,  -- Name of the client
+    balance FLOAT NOT NULL
 	)`, clientTableName)
 
 	_, err := d.DB.Exec(query)
@@ -135,12 +140,10 @@ func (d *DataStore) CreateTransactionsTable() error {
 }
 
 func (d *DataStore) LoadFromSQL() error {
-	if d.DB == nil {
-		return nil // Skip if DB is not initialized
-	}
-
 	tableName := fmt.Sprintf("transactions_%s", d.TableSuffix)
-	rows, err := d.DB.Query("SELECT id, ballot_number, cross_shard_status, sender, receiver, amount FROM " + tableName)
+	query := fmt.Sprintf(`SELECT id, ballot_number, cross_shard_status, sender, receiver, amount FROM %s`, tableName)
+
+	rows, err := d.DB.Query(query)
 	if err != nil {
 		return err
 	}
@@ -155,14 +158,14 @@ func (d *DataStore) LoadFromSQL() error {
 		d.Entries = append(d.Entries, entry)
 	}
 
-	log.Println("Loaded transactions from PostgreSQL into memory.")
+	log.Println("Loaded transactions from SQL into memory.")
 	return nil
 }
 
 func (d *DataStore) AddClient(name string, initialBalance float64) error {
 	tableName := fmt.Sprintf("clients_%s", d.TableSuffix)
-	query := `INSERT INTO $3 (name, balance) VALUES ($1, $2)`
-	_, err := d.DB.Exec(query, name, initialBalance, tableName)
+	query := fmt.Sprintf(`INSERT INTO %s (name, balance) VALUES ($1, $2)`, tableName)
+	_, err := d.DB.Exec(query, name, initialBalance)
 	if err != nil {
 		log.Println("Failed to add client:", err)
 		return err
@@ -173,20 +176,24 @@ func (d *DataStore) AddClient(name string, initialBalance float64) error {
 
 func (d *DataStore) UpdateClientBalance(clientID int, newBalance int) error {
 	tableName := fmt.Sprintf("clients_%s", d.TableSuffix)
-	query := `UPDATE $3 SET balance = $1, updated_at = CURRENT_TIMESTAMP WHERE name = $2`
-	_, err := d.DB.Exec(query, newBalance, clientID, tableName)
+	query := fmt.Sprintf(`UPDATE %s SET balance = $1 WHERE id = $2`, tableName)
+
+	_, err := d.DB.Exec(query, newBalance, clientID)
 	if err != nil {
+		log.Println("Failed to update client balance:", err)
 		return err
 	}
+
 	log.Printf("Updated balance for client ID %d to %d", clientID, newBalance)
 	return nil
 }
 
 func (d *DataStore) GetClientBalance(clientID int) (int, error) {
-	var balance int
 	tableName := fmt.Sprintf("clients_%s", d.TableSuffix)
-	query := `SELECT balance FROM $2 WHERE id = $1`
-	err := d.DB.QueryRow(query, clientID, tableName).Scan(&balance)
+	query := fmt.Sprintf(`SELECT balance FROM %s WHERE id = $1`, tableName)
+
+	var balance int
+	err := d.DB.QueryRow(query, clientID).Scan(&balance)
 	if err != nil {
 		return 0, err
 	}

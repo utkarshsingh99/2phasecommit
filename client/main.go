@@ -6,6 +6,7 @@ import (
 	"net"
 	"net/rpc"
 	"os"
+	"sync"
 	"time"
 
 	rpcmanager "github.com/utkarshsingh99/2phasecommit/rpc"
@@ -44,6 +45,14 @@ func startClient(clientId string, file *os.File) {
 	client := &Client{
 		StringId:   clientId,
 		RPCManager: rm,
+		CSTMapping: CSTMap{
+			mapping: map[string][]bool{},
+			lock:    sync.Mutex{},
+		},
+		TransactionMap: TransactionMap{
+			mapping: map[string]rpcmanager.Transaction{},
+			lock:    sync.Mutex{},
+		},
 	}
 	fmt.Println("RPC Clients: ", client.RPCManager.RPCClients)
 	clientPort := client.RPCManager.ClientPorts[clientId]

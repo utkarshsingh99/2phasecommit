@@ -94,10 +94,10 @@ func (c *Client) Execute(file *os.File) {
 			log.Println("Client not found for server: ", serverId)
 			continue
 		}
-		log.Println("Calling output functions for server: ", serverId)
-		client.Call("Server.PrintBalance", rpcmanager.Message{}, nil)
-		client.Call("Server.PrintLog", rpcmanager.Message{}, nil)
-		client.Call("Server.PrintDB", rpcmanager.Message{}, nil)
+		// log.Println("Calling output functions for server: ", serverId)
+		// client.Call("Server.PrintBalance", rpcmanager.Message{}, nil)
+		// client.Call("Server.PrintLog", rpcmanager.Message{}, nil)
+		// client.Call("Server.PrintDB", rpcmanager.Message{}, nil)
 	}
 }
 
@@ -195,7 +195,8 @@ func (c *Client) processTransactionSet(transactionSet []rpcmanager.Transaction, 
 		if senderCluster != receiverCluster {
 			fmt.Println("Cross shard transaction! ", senderCluster, receiverCluster)
 
-			go c.handleCrossShardTransaction(transactionObj)
+			c.handleCrossShardTransaction(transactionObj)
+			time.Sleep(time.Millisecond * 100)
 		} else {
 			fmt.Println("Intra shard transaction! ", senderCluster, receiverCluster)
 			message := rpcmanager.Message{
@@ -203,7 +204,6 @@ func (c *Client) processTransactionSet(transactionSet []rpcmanager.Transaction, 
 				From:    "Client",
 				Payload: transactionObj,
 			}
-
 			go func() {
 				contactServer := c.RPCManager.ShardLeaderMapping[senderCluster]
 
@@ -218,6 +218,7 @@ func (c *Client) processTransactionSet(transactionSet []rpcmanager.Transaction, 
 					return
 				}
 			}()
+			time.Sleep(time.Millisecond * 100)
 		}
 	}
 	// 	clientName := transaction.Sender

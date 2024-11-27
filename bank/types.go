@@ -1,8 +1,11 @@
 package bank
 
 import (
+	"database/sql"
 	"sync"
 	"time"
+
+	_ "github.com/lib/pq"
 )
 
 type Transaction struct {
@@ -19,6 +22,27 @@ type Log struct {
 	Locks        sync.RWMutex
 }
 
+type dataStoreEntry struct {
+	BallotNumber     float64
+	CrossShardStatus string
+	Sender           int
+	Receiver         int
+	Amount           int
+	ID               string
+}
+
+type DataStore struct {
+	DB          *sql.DB
+	Entries     []dataStoreEntry
+	TableSuffix string
+	lock        sync.RWMutex
+}
+
+type WriteAheadLog struct {
+	Transactions []Transaction
+	Locks        sync.RWMutex
+}
+
 type BankBalance struct {
 	Locks       map[int]*sync.RWMutex
 	LockTracker map[int]bool
@@ -28,6 +52,14 @@ type BankBalance struct {
 type Bank struct {
 	BankBalance *BankBalance
 	Log         *Log
+	WAL         *WriteAheadLog
+	DataStore   *DataStore
+}
+
+type Client struct {
+	ID      int
+	Name    string
+	Balance float64
 }
 
 var ClusterDataMap = map[string][]int{

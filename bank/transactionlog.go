@@ -2,7 +2,6 @@ package bank
 
 import (
 	"errors"
-	"fmt"
 	"sync"
 	"time"
 )
@@ -61,7 +60,7 @@ func (t *Log) SendRemainingLog(transactionID string) []Transaction {
 	t.Locks.RLock()
 	defer t.Locks.RUnlock()
 	index := 0
-	fmt.Println("SendRemiainingLog Transactions: ", t.Transactions)
+	// fmt.Println("SendRemiainingLog Transactions: ", t.Transactions)
 	for _, transaction := range t.Transactions {
 		index += 1
 		if transaction.ID == transactionID {

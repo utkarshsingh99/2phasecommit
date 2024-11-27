@@ -45,7 +45,7 @@ func startServer(serverId string) {
 	clusterId := rpcmanager.ServerClusterMap[serverId]
 
 	dataItemLimits := bank.ClusterDataMap[clusterId]
-	serverBank := bank.New(dataItemLimits[0], dataItemLimits[1])
+	serverBank := bank.New(dataItemLimits[0], dataItemLimits[1], serverId)
 
 	server := &Server{
 		IntId:      serverIntId,

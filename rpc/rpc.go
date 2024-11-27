@@ -24,6 +24,7 @@ func New() *RPCManager {
 	gob.Register(AcceptInterface{})
 	gob.Register(AcceptedInterface{})
 	gob.Register(CommitInterface{})
+	gob.Register(StatusInterface{})
 
 	return &RPCManager{
 		RPCClients: make(map[string]*rpc.Client),

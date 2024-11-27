@@ -18,7 +18,9 @@ func (s *Server) PrintBalance(message rpcmanager.Message, reply *int) error {
 }
 
 func (s *Server) PrintDatastore(message rpcmanager.Message, reply *[]bank.Transaction) error {
-	datastore := s.Bank.Log.Transactions
+	// datastore := s.Bank.Log.Transactions
+
+	datastore := s.Bank.DataStore.Entries
 	fmt.Println("Datastore of ", s.StringId, ": ")
 
 	for _, transaction := range datastore {
@@ -27,9 +29,13 @@ func (s *Server) PrintDatastore(message rpcmanager.Message, reply *[]bank.Transa
 			Receiver: transaction.Receiver,
 			Amount:   transaction.Amount,
 		}
-		fmt.Println(displayTransaction(tr))
+		fmt.Print(transaction.BallotNumber)
+		if transaction.CrossShardStatus != "INTRA" {
+			fmt.Print(" ", transaction.CrossShardStatus)
+		}
+		fmt.Print(" ", displayTransaction(tr), "\n")
 	}
-	*reply = datastore
+	*reply = nil
 	return nil
 }
 

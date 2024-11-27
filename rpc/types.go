@@ -77,6 +77,7 @@ type SyncInterface struct {
 
 type SyncResponseInterface struct {
 	RemainingLog []bank.Transaction
+	BallotNumber float64
 }
 
 type PromiseInterface struct {
@@ -101,4 +102,9 @@ type CommitInterface struct {
 	BallotNumber float64
 	AcceptNumber float64
 	AcceptValue  Transaction
+}
+
+type StatusInterface struct {
+	Transaction Transaction
+	Status      string
 }

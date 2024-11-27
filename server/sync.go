@@ -1,8 +1,9 @@
 package main
 
 import (
-	"fmt"
+	"log"
 
+	"github.com/utkarshsingh99/2phasecommit/bank"
 	rpcmanager "github.com/utkarshsingh99/2phasecommit/rpc"
 )
 
@@ -10,7 +11,7 @@ import (
 
 // If GiveSync received with a transaction ID argument, send a TakeSync to that server with logs after that ID
 func (s *Server) GiveSync(message rpcmanager.Message, reply *int) error {
-	fmt.Println("Received GiveSync from", message.From)
+	log.Println("Received GiveSync from", message.From)
 
 	// Get my last transaction ID
 
@@ -29,7 +30,7 @@ func (s *Server) GiveSync(message rpcmanager.Message, reply *int) error {
 	err := client.Call("Server.TakeSync", respMessage, nil)
 
 	if err != nil {
-		fmt.Println("Error calling TakeSync:", err)
+		log.Println("Error calling TakeSync:", err)
 	}
 
 	return nil
@@ -37,7 +38,7 @@ func (s *Server) GiveSync(message rpcmanager.Message, reply *int) error {
 
 // If TakeSync received with transaction array, append all transactions to the log
 func (s *Server) TakeSync(message rpcmanager.Message, reply *int) error {
-	fmt.Println("Received TakeSync from", message.From)
+	log.Println("Received TakeSync from", message.From)
 
 	lastTransId := message.Payload.(rpcmanager.SyncInterface).LastTransactionId
 
@@ -47,28 +48,41 @@ func (s *Server) TakeSync(message rpcmanager.Message, reply *int) error {
 		From: s.StringId,
 		Payload: rpcmanager.SyncResponseInterface{
 			RemainingLog: remainingTransactions,
+			// BallotNumber: s.Paxos.acceptNumber,
 		},
 	}
-	fmt.Println("Sending TakeSyncHandler to", remainingTransactions)
+	log.Println("Sending TakeSyncHandler to", remainingTransactions)
 	err := s.RPCManager.RPCClients[message.From].Call("Server.TakeSyncHandler", respMessage, nil)
 
 	if err != nil {
-		fmt.Println("Error calling TakeSyncHandler:", err)
+		log.Println("Error calling TakeSyncHandler:", err)
+		return err
 	}
 
 	return nil
 }
 
 func (s *Server) TakeSyncHandler(message rpcmanager.Message, reply *int) error {
-	fmt.Println("Received TakeSyncHandler from", message.From)
+	log.Println("Received TakeSyncHandler from", message.From)
 	// s.Bank.Log.UpdateLog(message.Payload.(rpcmanager.SyncResponseInterface).RemainingLog)
+
+	// ballotNumber := message.Payload.(rpcmanager.SyncResponseInterface).BallotNumber
 
 	for _, transaction := range message.Payload.(rpcmanager.SyncResponseInterface).RemainingLog {
 		// Acquire locks on x and y
-		fmt.Println("Committing transaction: ", transaction.Sender, transaction.Receiver, transaction.Amount)
+		// fmt.Println("Committing transaction: ", transaction.Sender, transaction.Receiver, transaction.Amount)
 		s.Bank.LockClient(transaction.Sender)
 		s.Bank.LockClient(transaction.Receiver)
 		s.Bank.CommitTransaction(transaction)
+
+		bankTrans := bank.Transaction{
+			Sender:   transaction.Sender,
+			Receiver: transaction.Receiver,
+			Amount:   transaction.Amount,
+			ID:       transaction.ID,
+		}
+
+		s.Bank.DataStore.AddTransaction(bankTrans, s.Paxos.acceptNumber, "INTRA")
 	}
 	// .AppendLog(message.Payload.(rpcmanager.SyncResponseInterface).RemainingLog)
 	return nil

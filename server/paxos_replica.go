@@ -92,12 +92,15 @@ func (s *Server) Accept(message rpcmanager.Message, reply *int) error {
 	if !s.Active {
 		return nil
 	}
-	// log.Println("Received Accept from", message.From, message.Payload.(rpcmanager.AcceptInterface))
+	log.Println("Received Accept from", message.From)
 
 	transaction := message.Payload.(rpcmanager.AcceptInterface).AcceptValue
 
 	// Acquire locks on x and y
+	log.Println("Acquiring locks on", transaction.Sender)
 	s.Bank.LockClient(transaction.Sender)
+
+	log.Println("Acquiring locks on", transaction.Receiver)
 	s.Bank.LockClient(transaction.Receiver)
 
 	respMessage := rpcmanager.Message{
@@ -110,6 +113,7 @@ func (s *Server) Accept(message rpcmanager.Message, reply *int) error {
 	}
 
 	// Send Accepted message back to primary
+	log.Println("Sending Accepted message...", respMessage)
 	go s.RPCManager.RPCClients[message.From].Call("Server.Accepted", respMessage, nil)
 	return nil
 }
@@ -123,11 +127,30 @@ func (s *Server) Commit(message rpcmanager.Message, reply *int) error {
 	if !s.Active {
 		return nil
 	}
-	// log.Println("Received Commit from", message.From, message.Payload.(rpcmanager.CommitInterface))
+	log.Println("Received Commit from", message.From)
 
 	transaction := message.Payload.(rpcmanager.CommitInterface).AcceptValue
 
 	s.executeTransaction(transaction)
+
+	bankTransaction := bank.Transaction{
+		Sender:    transaction.Sender,
+		Receiver:  transaction.Receiver,
+		Amount:    transaction.Amount,
+		ID:        transaction.ID,
+		StartTime: transaction.StartTime,
+	}
+
+	// Release locks on x and y if intra shard transaction
+	if transaction.Sender != 0 && transaction.Receiver != 0 {
+		s.Bank.DataStore.AddTransaction(bankTransaction, s.Paxos.acceptNumber, "INTRA")
+		s.Bank.UnlockClient(transaction.Sender)
+		s.Bank.UnlockClient(transaction.Receiver)
+	} else {
+		// Write in write ahead log because it is cross shard transaction
+		s.Bank.WAL.Append(bankTransaction)
+		s.Bank.DataStore.AddTransaction(bankTransaction, s.Paxos.acceptNumber, "PREPARED")
+	}
 
 	s.ResetPaxos()
 
@@ -152,9 +175,6 @@ func (s *Server) executeTransaction(transaction rpcmanager.Transaction) {
 
 	s.Bank.CommitTransaction(newTransaction)
 
-	// Release locks on x and y
-	s.Bank.UnlockClient(transaction.Sender)
-	s.Bank.UnlockClient(transaction.Receiver)
 }
 
 func (s *Server) ResetPaxos() {
