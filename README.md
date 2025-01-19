@@ -15,8 +15,8 @@ Fault tolerance is achieved by ensuring data availability even if one server in 
 #### Transactional Support:
 *Intra-Shard Transactions*: Access data within a single shard and are processed using a modified Paxos protocol.  
 *Cross-Shard Transactions*: Access data across multiple shards and are handled using the two-phase commit (2PC) protocol with Paxos for intra-shard consensus.
-Consensus Mechanisms:
 
+#### Consensus Mechanisms:
 *Modified Paxos Protocol*: Ensures fault-tolerant ordering and execution of transactions within a shard.  
 *Two-Phase Commit Protocol*: Coordinates cross-shard transactions to maintain atomicity and consistency across clusters.
 <img width="922" alt="Screenshot 2025-01-19 at 10 51 05 PM" src="https://github.com/user-attachments/assets/975481c9-1e2c-4fee-9f0d-ba22c8c42e35" />
@@ -27,11 +27,6 @@ Transactions abort in scenarios like insufficient balances, lock contention, or 
 
 #### Performance Metrics:
 Measures throughput (transactions per second) and latency (time to process a transaction).
-
-### Outputs:
-Provides the balance of any data item across all servers.
-Logs committed transactions for debugging and auditing.
-Performance metrics of each node in the system.
 
 ### Key Distributed Systems Concepts
 1. Consensus Protocols: Paxos and Multi-Paxos for intra-shard consistency.
@@ -45,5 +40,14 @@ Performance metrics of each node in the system.
 2. Implementation of fault-tolerant protocols like Paxos and 2PC.  
 3. Concurrency handling with locks and conflict resolution.  
 4. RPC Communications using net/rpc package.  
+
+### Outputs:
+Provides the balance of any data item across all servers.  
+Logs committed transactions for debugging and auditing.  
+Performance metrics of each node in the system.  
+
+The following output is from a tmux session running 9 nodes as separate processes on different ports.
+<img width="1512" alt="Screenshot 2025-01-20 at 12 57 15 AM" src="https://github.com/user-attachments/assets/6c18ddb3-721c-4ed6-a494-2ebfa213f7c4" />
+<img width="522" alt="Screenshot 2025-01-20 at 12 58 13 AM" src="https://github.com/user-attachments/assets/d31c27b7-717d-4587-8c96-354f254eef7d" />
 
 The full spec doc of this project can be found [here](https://piazza.com/class_profile/get_resource/m02qzstrzw256g/m3dammzi9jp3vp).
